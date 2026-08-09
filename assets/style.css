@@ -97,13 +97,23 @@ nav.top a:hover, nav.top a:focus-visible { color: var(--aqua-deep); }
 @media (prefers-color-scheme: dark) { .store-badge { background: #eaf6fa; color: #081820; } }
 .store-badge svg { width: 20px; height: 20px; }
 .soon { font-size: 0.85rem; color: var(--ink-3); font-weight: 600; }
-.phone { justify-self: center; position: relative; }
-.phone img {
-  width: min(300px, 72vw); border-radius: 34px; display: block;
-  border: 1px solid var(--glass-stroke);
-  box-shadow: 0 24px 60px rgba(11, 34, 48, 0.22);
-  transform: rotate(2.2deg);
+.phone { justify-self: center; position: relative; padding: 26px 10px; }
+/* soft water glow behind the device */
+.phone::before {
+  content: ""; position: absolute; inset: -8% -14%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--aqua) 34%, transparent), transparent 72%);
+  filter: blur(6px); z-index: -1;
 }
+.phone img {
+  width: min(292px, 68vw); height: auto; border-radius: 38px; display: block;
+  border: 1px solid var(--glass-stroke);
+  box-shadow:
+    0 30px 70px rgba(11, 34, 48, 0.28),
+    0 4px 14px rgba(11, 34, 48, 0.12);
+  transform: rotate(2deg);
+  animation: bob 7s ease-in-out infinite alternate;
+}
+@keyframes bob { from { transform: rotate(2deg) translateY(0); } to { transform: rotate(2deg) translateY(-10px); } }
 
 /* ── Sections ── */
 section { padding: 56px 0; }
@@ -131,9 +141,11 @@ h2.sec { font-size: clamp(1.7rem, 3.4vw, 2.3rem); letter-spacing: -0.02em; font-
 /* screenshots band */
 .shots { display: flex; gap: 18px; overflow-x: auto; padding: 30px 4px 14px; scroll-snap-type: x mandatory; }
 .shots img {
-  width: 226px; border-radius: 26px; scroll-snap-align: center; flex: none;
+  width: 226px; height: auto; border-radius: 26px; scroll-snap-align: center; flex: none;
   border: 1px solid var(--glass-stroke); box-shadow: var(--shadow);
+  transition: transform 0.25s ease;
 }
+.shots img:hover { transform: translateY(-6px); }
 
 /* pricing */
 .plans { margin-top: 34px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
