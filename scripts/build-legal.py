@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+"""Regenerate /privacy, /terms, /safety from the app repo's markdown.
+
+The markdown in the PoolHelp repo is the source of truth (it also feeds the
+in-app legal screens). Run this after any edit there, commit, push, redeploy.
+Usage: python3 scripts/build-legal.py [path-to-poolhelp-repo]
+"""
+import html
+import re
+import sys
+from pathlib import Path
+
+REPO = Path(sys.argv[1] if len(sys.argv) > 1 else '../PoolHelp')
+SITE = Path(__file__).resolve().parent.parent
+
+PAGES = [
+    ('PRIVACY.md', 'privacy', 'Privacy Policy'),
+    ('TERMS.md', 'terms', 'Terms of Service'),
+    ('SAFETY.md', 'safety', 'Safety & Disclaimer'),
+]
+
+SHELL = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title} — PoolHelp</title>
+<meta name="description" content="PoolHelp {title}.">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="icon" href="/assets/img/favicon.png">
+<link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
+<link rel="canonical" href="https://poolhelp.app/{slug}/">
+<meta name="robots" content="index,follow">
+</head>
+<body>
+<div class="water" aria-hidden="true"></div>
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="/"><img src="/assets/img/favicon.png" alt="" width="28" height="28">PoolHelp</a>
+    <nav class="top" aria-label="Site">
+      <a href="/#features" class="hide-sm">Features</a>
+      <a href="/#pricing" class="hide-sm">Pricing</a>
+      <a href="/support/">Support</a>
+    </nav>
+  </div>
+</header>
+<main><article class="doc">
+{body}
+</article></main>
+<footer class="site">
+  <div class="wrap">
+    <span>© 2026 PoolHelp · support@poolhelp.app</span>
+    <nav aria-label="Legal">
+      <a href="/privacy/">Privacy</a>
+      <a href="/terms/">Terms</a>
+      <a href="/safety/">Safety</a>
+      <a href="/support/">Support</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
+"""
+
+def inline(text: str) -> str:
+    out = html.escape(text, quote=False)
+    out = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', out)
+    # Linkify explicit URLs and the bare policy domains the docs mention.
+    out = re.sub(r'(https?://[^\s<)]+)', r'<a href="\1" rel="noopener">\1</a>', out)
+    out = re.sub(r'(?<![/\w])((?:revenuecat|sentry)\.(?:com|io)/privacy)',
+                 r'<a href="https://\1" rel="noopener">\1</a>', out)
+    out = out.replace('support@poolhelp.app',
+                      '<a href="mailto:support@poolhelp.app">support@poolhelp.app</a>')
+    return out
+
+def md_to_html(md: str) -> str:
+    lines, out, para, ul = md.splitlines(), [], [], False
+    def flush_para():
+        nonlocal para
+        if para:
+            out.append(f'<p>{inline(" ".join(para))}</p>')
+            para = []
+    def close_ul():
+        nonlocal ul
+        if ul:
+            out.append('</ul>')
+            ul = False
+    for ln in lines:
+        s = ln.strip()
+        if s.startswith('### '):
+            flush_para(); close_ul(); out.append(f'<h3>{inline(s[4:])}</h3>')
+        elif s.startswith('## '):
+            flush_para(); close_ul(); out.append(f'<h2>{inline(s[3:])}</h2>')
+        elif s.startswith('# '):
+            flush_para(); close_ul(); out.append(f'<h1>{inline(s[2:])}</h1>')
+        elif s.startswith('- '):
+            flush_para()
+            if not ul:
+                out.append('<ul>'); ul = True
+            out.append(f'<li>{inline(s[2:])}</li>')
+        elif s == '':
+            flush_para(); close_ul()
+        else:
+            close_ul(); para.append(s)
+    flush_para(); close_ul()
+    body = '\n'.join(out)
+    # The "Last updated" line reads better as a subtitle.
+    body = re.sub(r'<p>(<strong>Last updated:.*?</strong>)</p>',
+                  r'<p class="updated">\1</p>', body)
+    return body
+
+for src, slug, title in PAGES:
+    md = (REPO / src).read_text()
+    page = SHELL.format(title=title, slug=slug, body=md_to_html(md))
+    dest = SITE / slug / 'index.html'
+    dest.parent.mkdir(exist_ok=True)
+    dest.write_text(page)
+    print(f'{slug}/index.html  ←  {src}  ({len(page)} bytes)')
