@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PoolHelp Admin</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/admin/admin.css">
+<link rel="icon" href="/assets/img/favicon.png">
+</head>
+<body class="admin">
+<div class="water" aria-hidden="true"></div>
+
+<header class="site adminbar">
+  <div class="wrap">
+    <a class="brand" href="/"><img src="/assets/img/favicon.png" alt="" width="28" height="28">PoolHelp</a>
+    <span class="tag">Admin</span>
+    <div class="who" id="who" hidden>
+      <span id="whoEmail"></span>
+      <button class="btn sm" id="signOut" type="button">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- Sign in -->
+  <div class="auth" id="authView" hidden>
+    <form class="panel" id="loginForm" autocomplete="on">
+      <h1>Admin sign in</h1>
+      <p class="sub">Use the PoolHelp account on the admin allowlist.</p>
+      <label class="field">
+        <span>Email</span>
+        <input type="email" id="email" name="email" autocomplete="username" required>
+      </label>
+      <label class="field">
+        <span>Password</span>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button class="btn primary" id="loginBtn" type="submit" style="width:100%">Sign in</button>
+      <p class="err" id="loginErr" role="alert"></p>
+    </form>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="appView" hidden>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-overview" aria-selected="true" type="button">Overview</button>
+      <button role="tab" id="tab-users" aria-selected="false" type="button">Users</button>
+      <button role="tab" id="tab-health" aria-selected="false" type="button">System</button>
+    </div>
+
+    <section id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
+      <div class="skeleton">Loading metrics…</div>
+    </section>
+
+    <section id="panel-users" role="tabpanel" aria-labelledby="tab-users" hidden>
+      <div class="toolbar">
+        <div class="grow"><input type="search" id="search" placeholder="Search email or user id…" autocomplete="off"></div>
+        <select id="sort" aria-label="Sort by">
+          <option value="created_at">Newest</option>
+          <option value="last_sign_in">Last sign-in</option>
+          <option value="last_sync">Last sync</option>
+          <option value="tests">Most tests</option>
+          <option value="email">Email A–Z</option>
+        </select>
+        <button class="btn" id="refreshUsers" type="button">Refresh</button>
+      </div>
+      <div id="usersBody"><div class="skeleton">Loading users…</div></div>
+    </section>
+
+    <section id="panel-health" role="tabpanel" aria-labelledby="tab-health" hidden>
+      <div class="skeleton">Checking services…</div>
+    </section>
+  </div>
+</main>
+
+<div id="drawerHost"></div>
+<script src="/admin/admin.js"></script>
+</body>
+</html>
