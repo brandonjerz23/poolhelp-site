@@ -184,3 +184,33 @@ test('session route refuses without header, then without a cookie', async () => 
   const noCookie = await call('../api/admin/session', { method: 'GET', headers: { 'x-ph-admin': '1' } });
   assert.equal(noCookie.statusCode, 401);
 });
+
+test('an upstream 401 is not forwarded as a lost admin session', async () => {
+  // The client signs the admin out on any 401. A wrong service_role key must
+  // therefore never surface as one, or a misconfiguration reads as "logged out".
+  const { HttpError, handler, json } = lib;
+  const res = fakeRes();
+  await handler(async () => {
+    throw new HttpError(401, 'supabase rpc failed');
+  })({ url: '/api/admin/overview', headers: {} }, res);
+  assert.equal(res.statusCode, 502);
+  assert.equal(res.body.error, 'upstream_error');
+  assert.ok(json); // helper is exported
+
+  const forbidden = fakeRes();
+  await handler(async () => {
+    throw new HttpError(403, 'revenuecat forbidden');
+  })({ url: '/api/admin/overview', headers: {} }, forbidden);
+  assert.equal(forbidden.statusCode, 502);
+});
+
+test('other upstream statuses still pass through', async () => {
+  const { HttpError, handler } = lib;
+  for (const [thrown, expected] of [[404, 404], [429, 429], [500, 500]]) {
+    const res = fakeRes();
+    await handler(async () => {
+      throw new HttpError(thrown, 'upstream');
+    })({ url: '/x', headers: {} }, res);
+    assert.equal(res.statusCode, expected);
+  }
+});

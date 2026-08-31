@@ -298,8 +298,16 @@ function handler(fn) {
     try {
       await fn(req, res);
     } catch (err) {
-      const status = err instanceof HttpError ? err.status : 500;
-      console.error('[admin]', req.url, status, err.message, err.detail ?? '');
+      const raw = err instanceof HttpError ? err.status : 500;
+      // A 401 from THIS api must mean exactly one thing: the admin's session is
+      // invalid — the client signs the user out on sight of one. requireAdmin
+      // writes its own 401 directly rather than throwing, so any 401/403
+      // arriving here came from Supabase or RevenueCat, and forwarding it would
+      // silently sign the admin out over someone else's bad credential. The
+      // usual cause is a wrong or rotated SUPABASE_SERVICE_ROLE_KEY, where
+      // "you were logged out" is the single most misleading thing to report.
+      const status = raw === 401 || raw === 403 ? 502 : raw;
+      console.error('[admin]', req.url, raw, err.message, err.detail ?? '');
       if (!res.writableEnded) {
         json(res, status >= 400 && status < 600 ? status : 500, {
           error: status === 500 ? 'server_error' : 'upstream_error',

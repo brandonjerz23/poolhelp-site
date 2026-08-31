@@ -88,7 +88,11 @@
       throw new Error('unauthorized');
     }
     if (!res.ok) {
-      const err = new Error((body && body.error) || `HTTP ${res.status}`);
+      const err = new Error(
+        res.status === 502
+          ? 'a backend credential looks wrong — check SUPABASE_SERVICE_ROLE_KEY'
+          : (body && body.error) || `HTTP ${res.status}`,
+      );
       err.status = res.status;
       throw err;
     }
