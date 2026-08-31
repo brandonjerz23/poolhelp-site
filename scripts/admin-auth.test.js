@@ -150,3 +150,37 @@ test('admin responses are never cacheable', () => {
   assert.match(res.headers['cache-control'], /no-store/);
   assert.match(res.headers['x-robots-tag'], /noindex/);
 });
+
+// ── route-level gates ───────────────────────────────────────────────────────
+
+/** Drive a real route handler with a fake req/res. */
+async function call(handlerPath, req) {
+  const res = fakeRes();
+  await require(handlerPath)({ method: 'POST', headers: {}, ...req }, res);
+  return res;
+}
+
+test('logout refuses a request without the CSRF header', async () => {
+  // Otherwise any page on the internet could silently sign an admin out.
+  const res = await call('../api/admin/logout', { headers: {} });
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.headers['set-cookie'], undefined);
+});
+
+test('logout with the CSRF header clears the cookie', async () => {
+  const res = await call('../api/admin/logout', { headers: { 'x-ph-admin': '1' } });
+  assert.equal(res.statusCode, 200);
+  assert.match(res.headers['set-cookie'], /Max-Age=0/);
+});
+
+test('logout rejects non-POST', async () => {
+  const res = await call('../api/admin/logout', { method: 'GET', headers: { 'x-ph-admin': '1' } });
+  assert.equal(res.statusCode, 405);
+});
+
+test('session route refuses without header, then without a cookie', async () => {
+  const bare = await call('../api/admin/session', { method: 'GET', headers: {} });
+  assert.equal(bare.statusCode, 400);
+  const noCookie = await call('../api/admin/session', { method: 'GET', headers: { 'x-ph-admin': '1' } });
+  assert.equal(noCookie.statusCode, 401);
+});

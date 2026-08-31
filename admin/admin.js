@@ -522,11 +522,35 @@
           method: 'POST',
           body: JSON.stringify({ id, action: 'recovery_link' }),
         });
-        if (out.link) {
-          await navigator.clipboard?.writeText(out.link).catch(() => {});
+        if (!out.link) {
+          toast('No link returned');
+          return;
+        }
+        // The link is a one-time token shown nowhere else, so a failed copy
+        // must not look identical to a successful one. No optional chaining:
+        // a missing clipboard API has to reach the fallback, not be swallowed.
+        let copied = false;
+        try {
+          await navigator.clipboard.writeText(out.link);
+          copied = true;
+        } catch {
+          /* denied, document not focused, or no clipboard API */
+        }
+        if (copied) {
           toast('Reset link copied to clipboard');
         } else {
-          toast('No link returned');
+          // .value is not HTML-parsed, so the link needs no escaping here.
+          const box = document.createElement('input');
+          box.type = 'text';
+          box.readOnly = true;
+          box.className = 'mono';
+          box.style.width = '100%';
+          box.style.marginTop = '8px';
+          box.value = out.link;
+          btn.closest('section').appendChild(box);
+          box.focus();
+          box.select();
+          toast('Copy failed — the link is selected below');
         }
       } else if (act === 'delete') {
         const typed = ($('confirmEmail').value || '').trim();

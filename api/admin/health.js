@@ -52,12 +52,23 @@ async function checkProxyValidation() {
   if (r.status === 400) return { ok: true, detail: 'rejects disallowed models' };
   if (r.status === 402) return { ok: true, detail: 'paygate active (402)' };
   if (r.status === 429) return { ok: true, detail: 'rate limited (429)' };
+  // 401 means APP_TOKEN is set on the worker and this probe (which deliberately
+  // sends no token) was refused before validation. That is the gate working,
+  // not a failure — but it does mean the validator itself went unchecked.
+  if (r.status === 401) return { ok: true, detail: 'APP_TOKEN gate active — validator not probed' };
   return { ok: false, detail: `unexpected HTTP ${r.status} — validator may not be deployed` };
 }
 
+/**
+ * Probe the endpoint the dashboard actually depends on, rather than a generic
+ * ping: a 200 here proves both that RevenueCat is reachable AND that the key
+ * carries charts_metrics:overview:read. A key missing that scope would
+ * otherwise look healthy while the subscriptions panel stayed empty.
+ */
 async function checkRevenueCat() {
-  const data = await revenuecat('v2', `/projects/${env('REVENUECAT_PROJECT_ID')}`);
-  return { ok: true, detail: data && data.name ? `project ${data.name}` : 'reachable' };
+  const data = await revenuecat('v2', `/projects/${env('REVENUECAT_PROJECT_ID')}/metrics/overview`);
+  const n = data && Array.isArray(data.metrics) ? data.metrics.length : 0;
+  return { ok: n > 0, detail: n > 0 ? `${n} metrics readable` : 'reachable but reported no metrics' };
 }
 
 module.exports = handler(async (req, res) => {

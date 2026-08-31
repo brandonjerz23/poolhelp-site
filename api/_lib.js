@@ -18,6 +18,12 @@ const crypto = require('node:crypto');
 
 const COOKIE = 'ph_admin';
 const SESSION_TTL_S = 8 * 60 * 60;
+/**
+ * Cap on every outbound call. Without it a hung Supabase or RevenueCat holds
+ * the function open until Vercel's own limit, turning one slow dependency into
+ * a dashboard that appears frozen rather than one that reports a failure.
+ */
+const UPSTREAM_TIMEOUT_MS = 8000;
 
 // ── env ─────────────────────────────────────────────────────────────────────
 
@@ -179,15 +185,21 @@ function isAdminEmail(email) {
 async function rpc(fn, args) {
   const url = `${env('SUPABASE_URL')}/rest/v1/rpc/${fn}`;
   const key = env('SUPABASE_SERVICE_ROLE_KEY');
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: {
-      apikey: key,
-      authorization: `Bearer ${key}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(args || {}),
-  });
+  let r;
+  try {
+    r = await fetch(url, {
+      method: 'POST',
+      headers: {
+        apikey: key,
+        authorization: `Bearer ${key}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(args || {}),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw asUpstreamError(err, 'supabase');
+  }
   const text = await r.text();
   if (!r.ok) throw new HttpError(r.status, `supabase rpc ${fn} failed`, text.slice(0, 400));
   return text ? JSON.parse(text) : null;
@@ -196,15 +208,21 @@ async function rpc(fn, args) {
 /** GoTrue admin API (user deletion, password-reset links). */
 async function gotrue(path, init = {}) {
   const key = env('SUPABASE_SERVICE_ROLE_KEY');
-  const r = await fetch(`${env('SUPABASE_URL')}/auth/v1${path}`, {
-    ...init,
-    headers: {
-      apikey: key,
-      authorization: `Bearer ${key}`,
-      'content-type': 'application/json',
-      ...(init.headers || {}),
-    },
-  });
+  let r;
+  try {
+    r = await fetch(`${env('SUPABASE_URL')}/auth/v1${path}`, {
+      ...init,
+      headers: {
+        apikey: key,
+        authorization: `Bearer ${key}`,
+        'content-type': 'application/json',
+        ...(init.headers || {}),
+      },
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw asUpstreamError(err, 'supabase auth');
+  }
   const text = await r.text();
   const body = text ? safeParse(text) : null;
   if (!r.ok) throw new HttpError(r.status, 'supabase auth request failed', body);
@@ -221,14 +239,20 @@ const RC_ENTITLEMENT = 'ai';
  * Both accept the same `sk_` secret key.
  */
 async function revenuecat(version, path, init = {}) {
-  const r = await fetch(`https://api.revenuecat.com/${version}${path}`, {
-    ...init,
-    headers: {
-      authorization: `Bearer ${env('REVENUECAT_V2_KEY')}`,
-      'content-type': 'application/json',
-      ...(init.headers || {}),
-    },
-  });
+  let r;
+  try {
+    r = await fetch(`https://api.revenuecat.com/${version}${path}`, {
+      ...init,
+      headers: {
+        authorization: `Bearer ${env('REVENUECAT_V2_KEY')}`,
+        'content-type': 'application/json',
+        ...(init.headers || {}),
+      },
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw asUpstreamError(err, 'revenuecat');
+  }
   const text = await r.text();
   const body = text ? safeParse(text) : null;
   if (!r.ok) throw new HttpError(r.status, 'revenuecat request failed', body);
@@ -239,6 +263,14 @@ const rcConfigured = () =>
   Boolean(process.env.REVENUECAT_V2_KEY && process.env.REVENUECAT_PROJECT_ID);
 
 // ── errors ──────────────────────────────────────────────────────────────────
+
+/** Turn an abort into a status the UI can explain, not an opaque 500. */
+function asUpstreamError(err, what) {
+  if (err && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+    return new HttpError(504, `${what} timed out`);
+  }
+  return err;
+}
 
 class HttpError extends Error {
   constructor(status, message, detail) {
