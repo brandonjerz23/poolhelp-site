@@ -44,7 +44,7 @@
 <li>Reminders you set</li>
 <li>Chat history and any diagnoses generated in the app</li>
 <li>Your app settings (such as theme preference)</li>
-<li>A cached weather forecast for each pool that has a location</li>
+<li>A cached weather forecast for each pool that has a location — deleted, like everything else here, by Reset all data and by uninstalling</li>
 </ul>
 <p>Unless you create an account and sign in, this data lives <strong>only on your device</strong>. It is not uploaded to us in the background, and we keep no copy of it. If you do sign in, some of it syncs as described in the next section.</p>
 <h2>Optional account and sync</h2>
@@ -69,10 +69,10 @@
 <h2>Weather and location suggestions</h2>
 <p>PoolHelp never reads your device's location and never asks for location permission. A pool's location is simply the city you typed when you set it up.</p>
 <ul>
-<li><strong>Place suggestions.</strong> While you type a location for a pool, the app sends the text you have typed so far to PoolHelp's server, which forwards it to a place-search service — Geoapify (geoapify.com), or Photon (photon.komoot.io, run by komoot) if Geoapify is unavailable — and returns matching cities for you to pick from. Only the typed text is sent: no account identifier and no other pool data. Our server passes it straight through and does not store it.</li>
-<li><strong>Weather.</strong> If a pool has a location, the app fetches a forecast for it so it can show weather-based advice (freeze risk, heavy rain, high UV) and add a one-line weather summary to AI requests. To do that, the app sends the pool's approximate coordinates — rounded to two decimal places, roughly one kilometer — directly from your device to MET Norway, the Norwegian Meteorological Institute (api.met.no). Nothing else is sent: no account identifier, no pool data, and nothing about you. The forecast is cached on your device.</li>
+<li><strong>Place suggestions.</strong> While you type a location for a pool, the app sends the text you have typed so far to PoolHelp's server, which forwards it to a place-search service — Geoapify (geoapify.com), or Photon (photon.komoot.io, run by komoot) when Geoapify is unavailable — and returns matching cities for you to pick from. Only the typed text is sent: no account identifier and no other pool data. Our server keeps no record of it beyond a short-lived in-memory cache of recent searches (the typed text and the matching cities, with no identifier attached) so repeated lookups do not hit the service again; it is cleared automatically within a day.</li>
+<li><strong>Weather.</strong> If you picked a suggested location for a pool, the app fetches a forecast for it so it can show weather-based advice (freeze risk, heavy rain, high UV) and add a one-line weather summary to AI requests. To do that, the app sends the pool's approximate coordinates — rounded to two decimal places, roughly one kilometer — directly from your device to MET Norway, the Norwegian Meteorological Institute (api.met.no). Nothing else is sent: no account identifier, no pool data, and nothing about you. The forecast is cached on your device.</li>
 <li><strong>Where the coordinates live.</strong> Picking a suggestion saves the city name and its coordinates with the pool's other details on your device. If you have created an account and are signed in, they back up and sync with the rest of the pool profile, as described in "Optional account and sync".</li>
-<li><strong>Stopping it.</strong> Leave the location field blank and none of this happens. Clear a pool's location and weather lookups for that pool stop; a pool without a location never triggers one.</li>
+<li><strong>Stopping it.</strong> Leave the location field blank and none of this happens (the sample pool offered on the welcome screen comes with a location — remove it to stop its forecasts). Clear a pool's location and weather lookups for that pool stop; a pool without a location never triggers one.</li>
 </ul>
 <p>These are plain web requests, not SDKs: neither service runs code inside the app, and neither receives anything that identifies you or your account. Each service's handling of the requests it receives is governed by its own privacy policy.</p>
 <h2>Subscriptions and purchases</h2>
@@ -92,7 +92,7 @@
 <li>By default, all app data is stored locally, so <strong>you</strong> hold it.</li>
 <li>You can remove everything at any time using <strong>Reset all data</strong> in Settings. If you are signed in, this also removes your synced data.</li>
 <li><strong>Uninstalling PoolHelp deletes all of its local data</strong> from your device. Uninstalling does not delete data you have synced to an account; use Reset all data first while signed in, or contact support.</li>
-<li>AI features send data only when you use them, and weather lookups happen only for pools you have given a location. If you never use an AI feature, never sign in, and leave the location field blank, nothing leaves your device.</li>
+<li>AI features send data only when you use them, and weather lookups happen only for pools you have given a location. If you never use an AI feature, never sign in, and leave the location field blank (the sample pool comes with one — remove it to stop forecasts), nothing leaves your device.</li>
 </ul>
 <h2>Changes to this policy</h2>
 <p>If we change how the app handles data, we will update this policy and its "Last updated" date, and update the copy shown inside the app to match.</p>
