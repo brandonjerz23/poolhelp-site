@@ -70,3 +70,25 @@ Subscription data comes from RevenueCat, joined on user id: the app calls
 `Purchases.logIn(session.user.id)`, so a RevenueCat customer id **is** a
 Supabase user id. Buyers who never signed in live under `$RCAnonymousID:…` and
 have no Supabase row — look those up in RevenueCat's own dashboard.
+
+## Issue autofix
+
+`.github/workflows/issue-autofix.yml` runs Claude Code unattended whenever you
+or a collaborator opens an issue (or anyone adds the `autofix` label to one).
+A confidently fixable defect becomes a **draft PR** whose body starts with
+`Fixes #<n>`; anything else gets a triage comment and the `needs-human` label.
+Nothing merges itself.
+
+- **Setup**: one *repository* secret (Settings → Secrets and variables →
+  Actions), either `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`, bills
+  against your subscription) or `ANTHROPIC_API_KEY` (bills per token). The
+  workflow declares no environment, so an environment secret is not visible to
+  it. It takes effect once merged to the default branch.
+- **Guardrails** (`scripts/issue-autofix-prompt.md`): issue text is untrusted
+  input; the agent may not touch `.github/`, `scripts/`, add dependencies,
+  weaken `api/_lib.js` or the `vercel.json` headers, or hand-edit the generated
+  legal pages; `node --test scripts/` must pass; 150 turns, 15 USD and 45
+  minutes per run, one run per issue at a time.
+- **Re-run**: add the `autofix` label, or Actions → Issue autofix → Run
+  workflow with the issue number. An issue that already has an
+  `autofix/issue-<n>` branch is skipped.

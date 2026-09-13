@@ -1,0 +1,98 @@
+# On every new issue from the repo owner or a collaborator (or any issue that
+# gets the `autofix` label), run Claude Code unattended: investigate, and when
+# it can point at the defect with confidence, open a DRAFT pull request that
+# fixes it. Anything else gets a triage comment and the `needs-human` label.
+# Nothing merges itself. Setup and guardrails: README.md, "Issue autofix".
+name: Issue autofix
+
+on:
+  issues:
+    types: [opened, labeled]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Issue number to run on'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+# One run per issue at a time; a second trigger for the same issue waits.
+concurrency:
+  group: issue-autofix-${{ github.event.issue.number || github.event.inputs.issue }}
+  cancel-in-progress: false
+
+jobs:
+  autofix:
+    # The issue text becomes the agent's task, and anyone can open an issue on
+    # a public repo, so auto-run only for trusted authors. Anyone with triage
+    # rights can opt any other issue in by adding the `autofix` label.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.action == 'opened' &&
+       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association)) ||
+      (github.event.action == 'labeled' && github.event.label.name == 'autofix')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      ISSUE_NUMBER: ${{ github.event.issue.number || github.event.inputs.issue }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Skip issues that already have an autofix branch
+        id: seen
+        run: |
+          if git ls-remote --exit-code --heads origin "autofix/issue-${ISSUE_NUMBER}" >/dev/null; then
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            echo "autofix/issue-${ISSUE_NUMBER} already exists; a previous run handled #${ISSUE_NUMBER}."
+          else
+            echo "handled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v5
+        if: steps.seen.outputs.handled == 'false'
+        with:
+          node-version: 22
+
+      - name: Ensure labels exist
+        if: steps.seen.outputs.handled == 'false'
+        run: |
+          gh label create autofix     --force --color 1D76DB --description 'Ask the issue-autofix workflow to attempt a fix'
+          gh label create autofix-pr  --force --color 0E8A16 --description 'A draft PR from the issue-autofix workflow is open'
+          gh label create needs-human --force --color D93F0B --description 'issue-autofix could not fix this confidently; see its comment'
+
+      - name: Fix with Claude Code
+        if: steps.seen.outputs.handled == 'false'
+        env:
+          # Set ONE of these two repository secrets. The OAuth token (from
+          # `claude setup-token`) bills against your Claude subscription and
+          # shares its usage limits; the API key (console.anthropic.com) bills
+          # separately per token. If both are set the API key wins.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GIT_AUTHOR_NAME: issue-autofix[bot]
+          GIT_AUTHOR_EMAIL: noreply@poolhelp.app
+          GIT_COMMITTER_NAME: issue-autofix[bot]
+          GIT_COMMITTER_EMAIL: noreply@poolhelp.app
+        run: |
+          # An unset secret arrives as an empty string; drop it so the CLI sees
+          # exactly one credential.
+          [ -n "$ANTHROPIC_API_KEY" ] || unset ANTHROPIC_API_KEY
+          [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || unset CLAUDE_CODE_OAUTH_TOKEN
+          if [ -z "${ANTHROPIC_API_KEY:-}${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+            echo "::error::Add a repository secret named CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY (see README.md, \"Issue autofix\")."
+            exit 1
+          fi
+          npm install -g @anthropic-ai/claude-code
+          prompt="$(printf 'Issue to handle: #%s in %s. Default branch: %s.\n\n' \
+            "$ISSUE_NUMBER" "$GITHUB_REPOSITORY" "$DEFAULT_BRANCH"; cat scripts/issue-autofix-prompt.md)"
+          claude -p "$prompt" \
+            --allowedTools "Bash,Read,Edit,Write,Grep,Glob" \
+            --max-turns 150 \
+            --max-budget-usd 15
