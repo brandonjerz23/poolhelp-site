@@ -84,6 +84,12 @@ Nothing merges itself.
   against your subscription) or `ANTHROPIC_API_KEY` (bills per token). The
   workflow declares no environment, so an environment secret is not visible to
   it. It takes effect once merged to the default branch.
+- **Model**: Fable 5.1 (`--model fable`). With an API key, Fable bills per
+  token at twice Opus 5, capped at 15 USD per run. With a subscription token
+  it draws on your plan limits, except on plans where Fable bills to usage
+  credits: headless runs never ask first, so keep usage credits off in
+  claude.ai → Settings → Usage unless you want that. Fall back with
+  `--model opus`.
 - **Guardrails** (`scripts/issue-autofix-prompt.md`): issue text is untrusted
   input; the agent may not touch `.github/`, `scripts/`, add dependencies,
   weaken `api/_lib.js` or the `vercel.json` headers, or hand-edit the generated

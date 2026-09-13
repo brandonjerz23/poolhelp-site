@@ -92,7 +92,12 @@ jobs:
           npm install -g @anthropic-ai/claude-code
           prompt="$(printf 'Issue to handle: #%s in %s. Default branch: %s.\n\n' \
             "$ISSUE_NUMBER" "$GITHUB_REPOSITORY" "$DEFAULT_BRANCH"; cat scripts/issue-autofix-prompt.md)"
+          # Fable 5.1 is never a plan default, so pin it. On a subscription
+          # token some plans bill Fable to usage credits, and headless runs
+          # never ask first: keep usage credits off (claude.ai -> Settings ->
+          # Usage) unless you want that. See README.md, "Issue autofix".
           claude -p "$prompt" \
+            --model fable \
             --allowedTools "Bash,Read,Edit,Write,Grep,Glob" \
             --max-turns 150 \
             --max-budget-usd 15
