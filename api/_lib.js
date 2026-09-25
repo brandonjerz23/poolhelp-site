@@ -29,7 +29,10 @@ const UPSTREAM_TIMEOUT_MS = 8000;
 
 function env(name, required = true) {
   const v = process.env[name];
-  if (!v && required) throw new Error(`missing env: ${name}`);
+  // A ConfigError, not a bare Error: the console has been deployed with a
+  // secret missing before, and "server_error" told the owner nothing. The
+  // handler turns this into 503 + the variable NAME (never a value).
+  if (!v && required) throw new ConfigError(name);
   return v || '';
 }
 
@@ -42,6 +45,7 @@ function configured() {
     sessionSecret: Boolean(process.env.ADMIN_SESSION_SECRET),
     revenuecat: Boolean(process.env.REVENUECAT_V2_KEY && process.env.REVENUECAT_PROJECT_ID),
     aiProxy: Boolean(process.env.AI_PROXY_URL),
+    readToken: Boolean(process.env.ADMIN_READ_TOKEN),
   };
 }
 
@@ -147,11 +151,29 @@ function sessionCookie(token, maxAge) {
  * Gate every route. Returns the session, or writes the error and returns null
  * — callers must `if (!session) return;`.
  *
- * The custom-header requirement is the CSRF control: a cross-origin page can
- * send a form POST with cookies attached, but it cannot set x-ph-admin without
- * a preflight, and this API answers no CORS preflight.
+ * Two credentials, two privilege levels, enforced HERE rather than in the
+ * prose of a bot's prompt:
+ *   - the owner's signed cookie          → full session   (readOnly: false)
+ *   - `Authorization: Bearer <token>`    → bot session    (readOnly: true)
+ * A bearer that is present but wrong is a 401, never a fall-through to the
+ * cookie. Mutating routes call requireWrite() and refuse bot sessions.
+ *
+ * The custom-header requirement is the CSRF control for the cookie path: a
+ * cross-origin page can send a form POST with cookies attached, but it cannot
+ * set x-ph-admin without a preflight, and this API answers no CORS preflight.
+ * A bearer token is never attached by a browser on its own, so that path needs
+ * no CSRF header.
  */
 function requireAdmin(req, res) {
+  const auth = req.headers.authorization;
+  if (typeof auth === 'string' && /^Bearer\s/i.test(auth)) {
+    if (!bearerOk(auth.replace(/^Bearer\s+/i, '').trim())) {
+      json(res, 401, { error: 'unauthorized' });
+      return null;
+    }
+    return { sub: 'read-token', email: 'bot', readOnly: true };
+  }
+
   if (req.headers['x-ph-admin'] !== '1') {
     json(res, 400, { error: 'bad_request' });
     return null;
@@ -167,7 +189,30 @@ function requireAdmin(req, res) {
     json(res, 403, { error: 'forbidden' });
     return null;
   }
-  return session;
+  return { ...session, readOnly: false };
+}
+
+/** Constant-time check of the read-only bot token. Unset token admits nobody. */
+function bearerOk(token) {
+  const expected = process.env.ADMIN_READ_TOKEN || '';
+  if (!expected || !token) return false;
+  const a = Buffer.from(token);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+/**
+ * The write gate. Returns true for the owner's session; for a bot session it
+ * writes 403 and returns false — callers must `if (!requireWrite(...)) return;`.
+ * Data export counts as a write here: it is a bulk PII dump and belongs to a
+ * human decision, not a scheduled job.
+ */
+function requireWrite(session, res) {
+  if (session && session.readOnly) {
+    json(res, 403, { error: 'read_only_token' });
+    return false;
+  }
+  return true;
 }
 
 function isAdminEmail(email) {
@@ -280,6 +325,14 @@ class HttpError extends Error {
   }
 }
 
+/** A required environment variable is absent. Names the variable, never a value. */
+class ConfigError extends HttpError {
+  constructor(name) {
+    super(503, `missing env: ${name}`);
+    this.missing = name;
+  }
+}
+
 function safeParse(text) {
   try {
     return JSON.parse(text);
@@ -309,9 +362,10 @@ function handler(fn) {
       const status = raw === 401 || raw === 403 ? 502 : raw;
       console.error('[admin]', req.url, raw, err.message, err.detail ?? '');
       if (!res.writableEnded) {
-        json(res, status >= 400 && status < 600 ? status : 500, {
-          error: status === 500 ? 'server_error' : 'upstream_error',
-        });
+        const body = err instanceof ConfigError
+          ? { error: 'not_configured', missing: err.missing }
+          : { error: status === 500 ? 'server_error' : 'upstream_error' };
+        json(res, status >= 400 && status < 600 ? status : 500, body);
       }
     }
   };
@@ -331,11 +385,13 @@ module.exports = {
   verify,
   sessionCookie,
   requireAdmin,
+  requireWrite,
   isAdminEmail,
   rpc,
   gotrue,
   revenuecat,
   rcConfigured,
   HttpError,
+  ConfigError,
   handler,
 };

@@ -88,11 +88,13 @@
       throw new Error('unauthorized');
     }
     if (!res.ok) {
-      const err = new Error(
-        res.status === 502
-          ? 'a backend credential looks wrong — check SUPABASE_SERVICE_ROLE_KEY'
-          : (body && body.error) || `HTTP ${res.status}`,
-      );
+      let msg = (body && body.error) || `HTTP ${res.status}`;
+      if (res.status === 502) msg = 'a backend credential looks wrong — check SUPABASE_SERVICE_ROLE_KEY';
+      // Names the variable so a half-configured deploy explains itself.
+      if (res.status === 503 && body && body.missing) {
+        msg = `${body.missing} is not set in Vercel — run: npx vercel env add ${body.missing}`;
+      }
+      const err = new Error(msg);
       err.status = res.status;
       throw err;
     }

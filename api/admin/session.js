@@ -4,5 +4,9 @@ const { json, requireAdmin, handler } = require('../_lib');
 module.exports = handler(async (req, res) => {
   const session = requireAdmin(req, res);
   if (!session) return;
-  return json(res, 200, { email: session.email, expiresAt: session.exp * 1000 });
+  return json(res, 200, {
+    email: session.email,
+    expiresAt: session.exp ? session.exp * 1000 : null,
+    readOnly: Boolean(session.readOnly),
+  });
 });

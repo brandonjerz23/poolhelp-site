@@ -54,18 +54,18 @@ answers.
 | `REVENUECAT_V2_KEY` | no | `sk_…` with `charts_metrics:overview:read` |
 | `REVENUECAT_PROJECT_ID` | no | RevenueCat project id |
 | `AI_PROXY_URL` | no | the Cloudflare worker, for the health checks |
+| `ADMIN_READ_TOKEN` | no | `openssl rand -base64 32`; a read-only credential for bots (see below) |
 
 RevenueCat and the AI proxy are optional: without them those panels say so and
 everything else still works.
 
-### Where the data comes from
+A missing **required** variable is reported as `503 {"error":"not_configured","missing":"<NAME>"}`
+and the page names the variable — never its value — so a half-configured
+deploy explains itself instead of showing `server_error`.
 
-Metrics are computed in Postgres by `admin_overview()`, `admin_users()`,
-`admin_user_detail()` and `admin_user_export()` — `SECURITY DEFINER` functions
-in the app repo's `supabase/migrations/`, executable by `service_role` **only**.
-They read `auth.users`, so those grants are the whole security model; never
-grant them to `anon` or `authenticated`.
+### Bots and the read-only token
 
+<<<<<<< HEAD
 Subscription data comes from RevenueCat, joined on user id: the app calls
 `Purchases.logIn(session.user.id)`, so a RevenueCat customer id **is** a
 Supabase user id. Buyers who never signed in live under `$RCAnonymousID:…` and
@@ -98,3 +98,42 @@ Nothing merges itself.
 - **Re-run**: add the `autofix` label, or Actions → Issue autofix → Run
   workflow with the issue number. An issue that already has an
   `autofix/issue-<n>` branch is skipped.
+=======
+Automation (a cost watchdog, a support-triage bot) must never hold the same
+credential as the owner: the owner's cookie also authorizes comping a
+subscription and deleting an account. So bots get a **separate** credential,
+`ADMIN_READ_TOKEN`, sent as `Authorization: Bearer <token>` (no CSRF header
+needed — browsers never attach a bearer on their own):
+
+```
+curl -s https://poolhelp.app/api/admin/overview/ -H "Authorization: Bearer $ADMIN_READ_TOKEN"
+```
+
+The distinction is enforced in code (`requireWrite()` in `api/_lib.js`), not in
+any bot's instructions:
+
+| Route | Owner cookie | Bearer token |
+| --- | --- | --- |
+| `session/`, `overview/`, `users/`, `user/?id=`, `health/` | yes | yes |
+| `user/?id=&export=1` (bulk PII export) | yes | **403** |
+| `POST user/` (comp, revoke, recovery link) | yes | **403** |
+| `DELETE user/` | yes | **403** |
+
+A bearer that is present but wrong is a 401 and never falls through to the
+cookie. Leaving `ADMIN_READ_TOKEN` unset refuses every bearer. Rotate it by
+setting a new value; there is nothing else to invalidate.
+
+### Running locally
+
+`vercel dev` does **not** read a root `.env.local` for plain functions in a
+no-framework project, and it overwrites `.vercel/.env.development.local` with
+the linked project's (empty) development environment on every start. What
+works is inline process env, which the function runner inherits:
+
+```
+SUPABASE_URL=https://example.invalid ADMIN_EMAILS=you@example.com \
+ADMIN_SESSION_SECRET=dev ADMIN_READ_TOKEN=dev-token npx vercel dev
+```
+
+Unit tests need nothing: `node --test scripts/`.
+>>>>>>> ff33798 (Admin console: read-only bot token, and a missing secret names itself)

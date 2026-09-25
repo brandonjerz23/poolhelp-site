@@ -20,6 +20,7 @@ const {
   query,
   readJsonBody,
   requireAdmin,
+  requireWrite,
   rpc,
   gotrue,
   revenuecat,
@@ -75,13 +76,15 @@ async function subscription(userId) {
 }
 
 module.exports = handler(async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+  const session = requireAdmin(req, res);
+  if (!session) return;
 
   if (req.method === 'GET') {
     const q = query(req);
     if (!UUID.test(q.id || '')) return json(res, 400, { error: 'bad_user_id' });
 
     if (q.export === '1') {
+      if (!requireWrite(session, res)) return;
       const data = await rpc('admin_user_export', { p_uid: q.id });
       return json(res, 200, data);
     }
@@ -94,6 +97,7 @@ module.exports = handler(async (req, res) => {
   }
 
   if (req.method === 'POST') {
+    if (!requireWrite(session, res)) return;
     const body = await readJsonBody(req);
     if (!UUID.test(body.id || '')) return json(res, 400, { error: 'bad_user_id' });
 
@@ -136,6 +140,7 @@ module.exports = handler(async (req, res) => {
   }
 
   if (req.method === 'DELETE') {
+    if (!requireWrite(session, res)) return;
     const body = await readJsonBody(req);
     if (!UUID.test(body.id || '')) return json(res, 400, { error: 'bad_user_id' });
 
