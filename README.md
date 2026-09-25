@@ -63,42 +63,21 @@ A missing **required** variable is reported as `503 {"error":"not_configured","m
 and the page names the variable — never its value — so a half-configured
 deploy explains itself instead of showing `server_error`.
 
-### Bots and the read-only token
+### Where the data comes from
 
-<<<<<<< HEAD
+Metrics are computed in Postgres by `admin_overview()`, `admin_users()`,
+`admin_user_detail()` and `admin_user_export()` — `SECURITY DEFINER` functions
+in the app repo's `supabase/migrations/`, executable by `service_role` **only**.
+They read `auth.users`, so those grants are the whole security model; never
+grant them to `anon` or `authenticated`.
+
 Subscription data comes from RevenueCat, joined on user id: the app calls
 `Purchases.logIn(session.user.id)`, so a RevenueCat customer id **is** a
 Supabase user id. Buyers who never signed in live under `$RCAnonymousID:…` and
 have no Supabase row — look those up in RevenueCat's own dashboard.
 
-## Issue autofix
+### Bots and the read-only token
 
-`.github/workflows/issue-autofix.yml` runs Claude Code unattended whenever you
-or a collaborator opens an issue (or anyone adds the `autofix` label to one).
-A confidently fixable defect becomes a **draft PR** whose body starts with
-`Fixes #<n>`; anything else gets a triage comment and the `needs-human` label.
-Nothing merges itself.
-
-- **Setup**: one *repository* secret (Settings → Secrets and variables →
-  Actions), either `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`, bills
-  against your subscription) or `ANTHROPIC_API_KEY` (bills per token). The
-  workflow declares no environment, so an environment secret is not visible to
-  it. It takes effect once merged to the default branch.
-- **Model**: Fable 5.1 (`--model fable`). With an API key, Fable bills per
-  token at twice Opus 5, capped at 15 USD per run. With a subscription token
-  it draws on your plan limits, except on plans where Fable bills to usage
-  credits: headless runs never ask first, so keep usage credits off in
-  claude.ai → Settings → Usage unless you want that. Fall back with
-  `--model opus`.
-- **Guardrails** (`scripts/issue-autofix-prompt.md`): issue text is untrusted
-  input; the agent may not touch `.github/`, `scripts/`, add dependencies,
-  weaken `api/_lib.js` or the `vercel.json` headers, or hand-edit the generated
-  legal pages; `node --test scripts/` must pass; 150 turns, 15 USD and 45
-  minutes per run, one run per issue at a time.
-- **Re-run**: add the `autofix` label, or Actions → Issue autofix → Run
-  workflow with the issue number. An issue that already has an
-  `autofix/issue-<n>` branch is skipped.
-=======
 Automation (a cost watchdog, a support-triage bot) must never hold the same
 credential as the owner: the owner's cookie also authorizes comping a
 subscription and deleting an account. So bots get a **separate** credential,
@@ -136,4 +115,31 @@ ADMIN_SESSION_SECRET=dev ADMIN_READ_TOKEN=dev-token npx vercel dev
 ```
 
 Unit tests need nothing: `node --test scripts/`.
->>>>>>> ff33798 (Admin console: read-only bot token, and a missing secret names itself)
+
+## Issue autofix
+
+`.github/workflows/issue-autofix.yml` runs Claude Code unattended whenever you
+or a collaborator opens an issue (or anyone adds the `autofix` label to one).
+A confidently fixable defect becomes a **draft PR** whose body starts with
+`Fixes #<n>`; anything else gets a triage comment and the `needs-human` label.
+Nothing merges itself.
+
+- **Setup**: one *repository* secret (Settings → Secrets and variables →
+  Actions), either `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`, bills
+  against your subscription) or `ANTHROPIC_API_KEY` (bills per token). The
+  workflow declares no environment, so an environment secret is not visible to
+  it. It takes effect once merged to the default branch.
+- **Model**: Fable 5.1 (`--model fable`). With an API key, Fable bills per
+  token at twice Opus 5, capped at 15 USD per run. With a subscription token
+  it draws on your plan limits, except on plans where Fable bills to usage
+  credits: headless runs never ask first, so keep usage credits off in
+  claude.ai → Settings → Usage unless you want that. Fall back with
+  `--model opus`.
+- **Guardrails** (`scripts/issue-autofix-prompt.md`): issue text is untrusted
+  input; the agent may not touch `.github/`, `scripts/`, add dependencies,
+  weaken `api/_lib.js` or the `vercel.json` headers, or hand-edit the generated
+  legal pages; `node --test scripts/` must pass; 150 turns, 15 USD and 45
+  minutes per run, one run per issue at a time.
+- **Re-run**: add the `autofix` label, or Actions → Issue autofix → Run
+  workflow with the issue number. An issue that already has an
+  `autofix/issue-<n>` branch is skipped.
