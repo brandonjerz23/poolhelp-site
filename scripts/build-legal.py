@@ -132,8 +132,8 @@ def md_to_html(md: str) -> str:
     flush_para(); close_ul()
     body = '\n'.join(out)
     # The "Last updated" line reads better as a subtitle, bold or not.
-    body = re.sub(r'<p>(?:<strong>)?(Last updated:.*?)(?:</strong>)?</p>',
-                  r'<p class="updated"><strong>\1</strong></p>', body)
+    body = re.sub(r'<p>(?:<strong>)?(Last updated:)(?:</strong>)?([^<]*?)(?:</strong>)?</p>',
+                  r'<p class="updated"><strong>\1\2</strong></p>', body)
     return body
 
 for src, slug, title in PAGES:
