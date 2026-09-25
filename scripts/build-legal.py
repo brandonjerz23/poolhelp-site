@@ -40,6 +40,7 @@ SHELL = """<!DOCTYPE html>
     <nav class="top" aria-label="Site">
       <a href="/#features" class="hide-sm">Features</a>
       <a href="/#pricing" class="hide-sm">Pricing</a>
+      <a href="/help/">Help</a>
       <a href="/support/">Support</a>
     </nav>
   </div>
@@ -54,6 +55,7 @@ SHELL = """<!DOCTYPE html>
       <a href="/privacy/">Privacy</a>
       <a href="/terms/">Terms</a>
       <a href="/safety/">Safety</a>
+      <a href="/help/">Help</a>
       <a href="/support/">Support</a>
     </nav>
   </div>
