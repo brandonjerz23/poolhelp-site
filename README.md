@@ -128,7 +128,11 @@ Nothing merges itself.
   Actions), either `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`, bills
   against your subscription) or `ANTHROPIC_API_KEY` (bills per token). The
   workflow declares no environment, so an environment secret is not visible to
-  it. It takes effect once merged to the default branch.
+  it. It takes effect once merged to the default branch. Also tick **Allow
+  GitHub Actions to create and approve pull requests** under Settings →
+  Actions → General → Workflow permissions; without it the agent can push its
+  branch but not open the PR, and leaves a one-click PR link on the issue
+  instead.
 - **Model**: Fable 5.1 (`--model fable`). With an API key, Fable bills per
   token at twice Opus 5, capped at 15 USD per run. With a subscription token
   it draws on your plan limits, except on plans where Fable bills to usage
