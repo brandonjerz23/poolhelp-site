@@ -49,7 +49,7 @@ SHELL = """<!DOCTYPE html>
 </article></main>
 <footer class="site">
   <div class="wrap">
-    <span>© 2026 PoolHelp · support@poolhelp.app</span>
+    <span>© 2026 Sabesoft LLC · support@poolhelp.app</span>
     <nav aria-label="Legal">
       <a href="/privacy/">Privacy</a>
       <a href="/terms/">Terms</a>
@@ -62,16 +62,38 @@ SHELL = """<!DOCTYPE html>
 </html>
 """
 
+A_TAG = re.compile(r'<a\b[^>]*>.*?</a>', re.S)
+
+def outside_links(text: str, fn) -> str:
+    """Apply fn to the stretches of text that are not already inside an <a>."""
+    parts, pos = [], 0
+    for m in A_TAG.finditer(text):
+        parts.append(fn(text[pos:m.start()]))
+        parts.append(m.group(0))
+        pos = m.end()
+    parts.append(fn(text[pos:]))
+    return ''.join(parts)
+
+def md_link(m: re.Match) -> str:
+    text, href = m.group(1), m.group(2)
+    rel = ' rel="noopener"' if href.startswith('http') else ''
+    return f'<a href="{href}"{rel}>{text}</a>'
+
+def autolink(text: str) -> str:
+    # Linkify explicit URLs and the bare policy domains the docs mention.
+    text = re.sub(r'(https?://[^\s<)]+)', r'<a href="\1" rel="noopener">\1</a>', text)
+    text = re.sub(r'(?<![/\w])((?:revenuecat|sentry)\.(?:com|io)/privacy)',
+                  r'<a href="https://\1" rel="noopener">\1</a>', text)
+    return text.replace('support@poolhelp.app',
+                        '<a href="mailto:support@poolhelp.app">support@poolhelp.app</a>')
+
 def inline(text: str) -> str:
     out = html.escape(text, quote=False)
     out = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', out)
-    # Linkify explicit URLs and the bare policy domains the docs mention.
-    out = re.sub(r'(https?://[^\s<)]+)', r'<a href="\1" rel="noopener">\1</a>', out)
-    out = re.sub(r'(?<![/\w])((?:revenuecat|sentry)\.(?:com|io)/privacy)',
-                 r'<a href="https://\1" rel="noopener">\1</a>', out)
-    out = out.replace('support@poolhelp.app',
-                      '<a href="mailto:support@poolhelp.app">support@poolhelp.app</a>')
-    return out
+    # Markdown links first (relative, mailto: and http(s) hrefs); the
+    # autolinkers then only touch text that is not already inside an <a>.
+    out = re.sub(r'\[([^\]]+)\]\(((?:https?://|mailto:|/)[^)\s]+)\)', md_link, out)
+    return outside_links(out, autolink)
 
 def md_to_html(md: str) -> str:
     lines, out, para, ul = md.splitlines(), [], [], False
@@ -85,7 +107,7 @@ def md_to_html(md: str) -> str:
         if ul:
             out.append('</ul>')
             ul = False
-    for ln in lines:
+    for i, ln in enumerate(lines):
         s = ln.strip()
         if s.startswith('### '):
             flush_para(); close_ul(); out.append(f'<h3>{inline(s[4:])}</h3>')
@@ -99,14 +121,19 @@ def md_to_html(md: str) -> str:
                 out.append('<ul>'); ul = True
             out.append(f'<li>{inline(s[2:])}</li>')
         elif s == '':
-            flush_para(); close_ul()
+            flush_para()
+            # A blank line between bullets keeps one list: only close it when
+            # the next non-blank line is not another bullet.
+            nxt = next((l.strip() for l in lines[i + 1:] if l.strip()), '')
+            if not nxt.startswith('- '):
+                close_ul()
         else:
             close_ul(); para.append(s)
     flush_para(); close_ul()
     body = '\n'.join(out)
-    # The "Last updated" line reads better as a subtitle.
-    body = re.sub(r'<p>(<strong>Last updated:.*?</strong>)</p>',
-                  r'<p class="updated">\1</p>', body)
+    # The "Last updated" line reads better as a subtitle, bold or not.
+    body = re.sub(r'<p>(?:<strong>)?(Last updated:)(?:</strong>)?([^<]*?)(?:</strong>)?</p>',
+                  r'<p class="updated"><strong>\1\2</strong></p>', body)
     return body
 
 for src, slug, title in PAGES:
