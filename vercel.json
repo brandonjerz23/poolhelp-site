@@ -1,6 +1,10 @@
 {
   "cleanUrls": true,
   "trailingSlash": true,
+  "redirects": [
+    { "source": "/faq", "destination": "/help/", "permanent": true },
+    { "source": "/faq/", "destination": "/help/", "permanent": true }
+  ],
   "headers": [
     {
       "source": "/(.*)",
